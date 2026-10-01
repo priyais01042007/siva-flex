@@ -14,8 +14,8 @@ export default function Footer() {
               <Image
                 src="/siva_flux_logo.png"
                 alt="Siva Flex"
-                width={130}
-                height={50}
+                width={62}
+                height={56}
                 style={{ objectFit: "contain" }}
               />
             </div>
@@ -126,8 +126,8 @@ export default function Footer() {
         .footer-logo-card {
           display: inline-block;
           background: #ffffff;
-          padding: 0.35rem 0.75rem;
-          border-radius: 12px;
+          padding: 0.2rem 0.4rem;
+          border-radius: 10px;
           margin-bottom: 1rem;
           width: fit-content;
         }

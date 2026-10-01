@@ -19,8 +19,8 @@ export default function Header() {
             <Image
               src="/siva_flux_logo.png"
               alt="Siva Flex Palani Logo"
-              width={130}
-              height={52}
+              width={62}
+              height={56}
               priority
               style={{ objectFit: "contain" }}
             />
@@ -166,8 +166,8 @@ export default function Header() {
 
         .logo-card {
           background: #ffffff;
-          padding: 0.35rem 0.7rem;
-          border-radius: 12px;
+          padding: 0.2rem 0.4rem;
+          border-radius: 10px;
           box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
           border: 1px solid rgba(2, 132, 199, 0.18);
           display: flex;
