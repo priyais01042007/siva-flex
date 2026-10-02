@@ -37,7 +37,9 @@ export async function GET(req: NextRequest) {
       return new NextResponse(new Uint8Array(cached.buffer), {
         headers: {
           "Content-Type": "image/jpeg",
-          "Cache-Control": "public, max-age=604800, stale-while-revalidate=86400",
+          "Cache-Control": "private, no-cache, no-store, must-revalidate",
+          "Netlify-CDN-Cache-Control": "no-store",
+          "Vary": "Cookie, Accept",
         },
       });
     }
@@ -62,7 +64,9 @@ export async function GET(req: NextRequest) {
           return new NextResponse(new Uint8Array(buffer), {
             headers: {
               "Content-Type": "image/jpeg",
-              "Cache-Control": "public, max-age=604800, stale-while-revalidate=86400",
+              "Cache-Control": "private, no-cache, no-store, must-revalidate",
+              "Netlify-CDN-Cache-Control": "no-store",
+              "Vary": "Cookie, Accept",
             },
           });
         }
@@ -97,7 +101,9 @@ export async function GET(req: NextRequest) {
           return new NextResponse(new Uint8Array(resizedBuffer), {
             headers: {
               "Content-Type": "image/jpeg",
-              "Cache-Control": "public, max-age=604800, stale-while-revalidate=86400",
+              "Cache-Control": "private, no-cache, no-store, must-revalidate",
+              "Netlify-CDN-Cache-Control": "no-store",
+              "Vary": "Cookie, Accept",
             },
           });
         }
@@ -120,7 +126,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(filePathParam);
     }
 
-    return new NextResponse("File not found in storage", { status: 404 });
+    return new NextResponse("File not found in storage", {
+      status: 404,
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
+        "Netlify-CDN-Cache-Control": "no-store",
+      },
+    });
   } catch (error: unknown) {
     console.error("Thumbnail error:", error);
     return new NextResponse("Error generating thumbnail", { status: 500 });

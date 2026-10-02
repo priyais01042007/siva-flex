@@ -726,25 +726,21 @@ export default function LiveFilesAdminPage() {
 
                           {/* 5. File: Bigger artwork display (84px), NOT clickable in table */}
                           <td className="td-file">
-                            {f.customer_billing_file_path ? (
+                            {f.customer_billing_file_path && !f.customer_billing_file_path.startsWith("images/upload/") && f.customer_billing_file_path !== "pending_upload" ? (
                               <div className="live-file-thumb-display" title={f.customer_billing_file_name}>
                                 <img
-                                  src={`/api/admin/live-files/thumbnail?path=${encodeURIComponent(f.customer_billing_file_path)}`}
+                                  src={`/api/admin/live-files/thumbnail?path=${encodeURIComponent(f.customer_billing_file_path)}&orderId=${f.customer_billing_id}`}
                                   alt={f.customer_billing_file_name}
                                   className="live-file-thumb-img"
                                   loading="lazy"
                                   onError={(e) => {
                                     const target = e.target as HTMLImageElement;
-                                    if (!target.src.includes(f.customer_billing_file_path)) {
-                                      target.src = f.customer_billing_file_path;
-                                    } else {
-                                      target.style.display = "none";
-                                    }
+                                    target.style.display = "none";
                                   }}
                                 />
                               </div>
                             ) : (
-                              <span className="no-file-text">No File</span>
+                              <span className="no-file-text">📦 Purged</span>
                             )}
                           </td>
 

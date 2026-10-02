@@ -13,19 +13,41 @@ export async function GET(req: NextRequest) {
     const filePath = searchParams.get("path");
 
     if (!filePath) {
-      return new NextResponse("Missing path parameter", { status: 400 });
+      return new NextResponse("Missing path parameter", {
+        status: 400,
+        headers: {
+          "Cache-Control": "private, no-cache, no-store, must-revalidate",
+          "Netlify-CDN-Cache-Control": "no-store",
+        },
+      });
     }
 
     // Strictly enforce session and tenant ownership
     const auth = await authorizeFileAccess(filePath);
     if (!auth.authorized) {
-      return new NextResponse(auth.error || "Access Denied", { status: auth.status });
+      return new NextResponse(auth.error || "Access Denied", {
+        status: auth.status,
+        headers: {
+          "Cache-Control": "private, no-cache, no-store, must-revalidate",
+          "Netlify-CDN-Cache-Control": "no-store",
+        },
+      });
     }
 
     // Serve optimized thumbnail from RAM cache or Supabase Storage
-    return await getAdminThumbnail(req);
+    const response = await getAdminThumbnail(req);
+    response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
+    response.headers.set("Netlify-CDN-Cache-Control", "no-store");
+    response.headers.set("Vary", "Cookie, Accept");
+    return response;
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Error generating thumbnail";
-    return new NextResponse(msg, { status: 500 });
+    return new NextResponse(msg, {
+      status: 500,
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
+        "Netlify-CDN-Cache-Control": "no-store",
+      },
+    });
   }
 }

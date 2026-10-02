@@ -33,9 +33,28 @@ export default function DeliveredFilesPage() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<string>("99");
 
+  const isCloudStoredFile = (filePath: string | null | undefined): boolean => {
+    if (!filePath) return false;
+    const p = filePath.trim();
+    if (
+      p === "" ||
+      p === "pending_upload" ||
+      p.startsWith("images/upload/") ||
+      p.startsWith("images/") ||
+      p.startsWith("public/images/")
+    ) {
+      return false;
+    }
+    return p.startsWith("dealer_") || p.includes("customer-files") || p.startsWith("http");
+  };
+
   const handleOpenPreview = (filePath: string) => {
     if (!filePath) return;
-    setPreviewImage(`/api/storage/thumbnail?path=${encodeURIComponent(filePath)}`);
+    if (!isCloudStoredFile(filePath)) {
+      alert("This artwork was delivered and has been purged from active storage.");
+      return;
+    }
+    setPreviewImage(`/api/storage/thumbnail?path=${encodeURIComponent(filePath)}&t=${Date.now()}`);
   };
 
   useEffect(() => {
@@ -331,15 +350,15 @@ export default function DeliveredFilesPage() {
                 paginatedFiles.map((file) => (
                   <tr key={file.customer_billing_id}>
                     <td>
-                      {file.customer_billing_file_path ? (
+                      {isCloudStoredFile(file.customer_billing_file_path) ? (
                         <div
                           className="thumb-box"
                           onClick={() => handleOpenPreview(file.customer_billing_file_path)}
                           title="Click to view artwork"
                         >
                           <img
-                            src={`/api/storage/thumbnail?path=${encodeURIComponent(file.customer_billing_file_path)}`}
-                            alt="delivered"
+                            src={`/api/storage/thumbnail?path=${encodeURIComponent(file.customer_billing_file_path)}&orderId=${file.customer_billing_id}`}
+                            alt="delivered artwork"
                             className="thumb-img"
                             onError={(e) => {
                               const target = e.target as HTMLElement;
@@ -358,7 +377,11 @@ export default function DeliveredFilesPage() {
                           </div>
                         </div>
                       ) : (
-                        <div className="delivered-placeholder" style={{ display: "flex" }}>
+                        <div
+                          className="delivered-placeholder"
+                          style={{ display: "flex" }}
+                          title="Artwork was delivered and purged from active storage"
+                        >
                           <span className="delivered-placeholder-icon">📦</span>
                           <span className="delivered-placeholder-text">Delivered</span>
                           <span className="delivered-placeholder-sub">Purged</span>

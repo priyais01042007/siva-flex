@@ -51,8 +51,26 @@ export default function CustomerSendFilePage() {
   // Customer ID from storage (default 99 for TEST test1@gmail.com customer)
   const [customerId, setCustomerId] = useState<string>("99");
 
+  const isCloudStoredFile = (filePath: string | null | undefined): boolean => {
+    if (!filePath) return false;
+    const p = filePath.trim();
+    if (
+      p === "" ||
+      p === "pending_upload" ||
+      p.startsWith("images/upload/") ||
+      p.startsWith("images/") ||
+      p.startsWith("public/images/")
+    ) {
+      return false;
+    }
+    return p.startsWith("dealer_") || p.includes("customer-files") || p.startsWith("http");
+  };
+
   const handleOpenPreview = async (filePath: string) => {
-    if (!filePath) return;
+    if (!filePath || !isCloudStoredFile(filePath)) {
+      alert("This artwork file has been archived and purged from active storage.");
+      return;
+    }
     try {
       const res = await fetch(
         `/api/storage/signed-url?path=${encodeURIComponent(filePath)}&dealerId=${customerId}`
@@ -644,24 +662,24 @@ export default function CustomerSendFilePage() {
                       </div>
                     </td>
                     <td>
-                      {file.customer_billing_file_path ? (
+                      {isCloudStoredFile(file.customer_billing_file_path) ? (
                         <div
                           className="thumb-container"
                           onClick={() => handleOpenPreview(file.customer_billing_file_path)}
                           title="Click to view full image"
                         >
                           <img
-                            src={`/api/storage/thumbnail?path=${encodeURIComponent(file.customer_billing_file_path)}`}
+                            src={`/api/storage/thumbnail?path=${encodeURIComponent(file.customer_billing_file_path)}&orderId=${file.customer_billing_id}`}
                             alt="preview"
                             className="thumb-img"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src = `/api/storage/file?path=${encodeURIComponent(file.customer_billing_file_path)}`;
+                              (e.target as HTMLImageElement).src = `/api/storage/file?path=${encodeURIComponent(file.customer_billing_file_path)}&orderId=${file.customer_billing_id}`;
                             }}
                           />
                           <span className="view-badge">View</span>
                         </div>
                       ) : (
-                        <span className="no-img">No Image</span>
+                        <span className="no-img" title="Artwork was delivered/purged">📦 Purged</span>
                       )}
                     </td>
                     <td style={{ textAlign: "center" }}><StatusBadge status={file.customer_billing_file_status} /></td>
