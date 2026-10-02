@@ -16,7 +16,8 @@ export const sql =
   global.__postgres_client__ ||
   postgres(connectionString, {
     ssl: "require",
-    max: 10,
+    prepare: false, // Critical for Supabase transaction pooler (port 6543)
+    max: 5,
     idle_timeout: 20,
     connect_timeout: 10,
   });

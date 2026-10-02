@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
-import { createSession, getSessionCookieAttributes, verifyPassword, hashPassword } from "@/lib/auth";
+import { createSession, getSessionCookieAttributes, verifyPassword, hashPassword, ADMIN_SESSION_MAX_AGE_SECONDS } from "@/lib/auth";
 import { signAuthToken } from "@/lib/token";
 import { loginRateLimiter } from "@/lib/rate-limiter";
 import { extractClientMeta, logAudit } from "@/lib/audit";
@@ -117,8 +117,8 @@ export async function POST(req: Request) {
     // 6. Reset rate limit counter on success
     loginRateLimiter.reset(meta.ipAddress);
 
-    // 7. Create database session
-    const { rawToken } = await createSession(admin.id, req);
+    // 7. Create database session (Hard limit 1 day for admin)
+    const { rawToken } = await createSession(admin.id, req, "admin");
 
     // 8. Sign role token for Edge Middleware
     const roleToken = await signAuthToken({
@@ -150,12 +150,12 @@ export async function POST(req: Request) {
 
     const isProduction = process.env.NODE_ENV === "production";
 
-    // Set Primary Session Cookie
+    // Set Primary Session Cookie (1 day expiry)
     response.cookies.set({
-      ...getSessionCookieAttributes(rawToken),
+      ...getSessionCookieAttributes(rawToken, "admin"),
     });
 
-    // Set Signed Edge Middleware Companion Cookie
+    // Set Signed Edge Middleware Companion Cookie (1 day expiry)
     response.cookies.set({
       name: "siva_auth_meta",
       value: roleToken,
@@ -163,7 +163,7 @@ export async function POST(req: Request) {
       secure: isProduction,
       sameSite: "strict",
       path: "/",
-      maxAge: 7 * 24 * 60 * 60,
+      maxAge: ADMIN_SESSION_MAX_AGE_SECONDS,
     });
 
     return response;

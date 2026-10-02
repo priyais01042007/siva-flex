@@ -1,5 +1,6 @@
 import React from "react";
 import CustomerNavbar from "@/components/CustomerNavbar";
+import SessionTimeoutGuard from "@/components/SessionTimeoutGuard";
 
 export const metadata = {
   title: "Dealer Portal - Siva Flex Palani",
@@ -13,6 +14,7 @@ export default function CustomerLayout({
 }) {
   return (
     <div className="customer-app-wrapper">
+      <SessionTimeoutGuard />
       <CustomerNavbar />
       <main className="customer-dashboard-area">{children}</main>
       <style>{`

@@ -99,7 +99,9 @@ export default function CustomerSendFilePage() {
   const fetchFluxTypes = async () => {
     try {
       const res = await fetch("/api/customer/flux-types");
-      const json = await res.json();
+      if (!res.ok) return;
+      const text = await res.text();
+      const json = JSON.parse(text);
       if (json.success) {
         setFluxTypes(json.data);
       }
@@ -112,7 +114,20 @@ export default function CustomerSendFilePage() {
     setLoading(true);
     try {
       const res = await fetch(`/api/customer/files?customerId=${cId}`, { cache: "no-store" });
-      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(
+          res.status === 504
+            ? "Connection timed out. Please verify DATABASE_URL is using the Supabase pooler."
+            : `Failed to load files (HTTP ${res.status})`
+        );
+      }
+      const text = await res.text();
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        throw new Error("Unexpected response from server. Please refresh.");
+      }
       if (json.success && Array.isArray(json.data)) {
         setFiles(json.data);
       }
@@ -163,10 +178,20 @@ export default function CustomerSendFilePage() {
         body: formData,
       });
 
-      const json = await res.json();
+      const text = await res.text();
+      let json: any = null;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        throw new Error(
+          res.status === 504 || text.includes("timed out")
+            ? "Upload timed out. Please check your network and verify Netlify DATABASE_URL."
+            : "Server returned an unexpected response. Please try again."
+        );
+      }
 
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || "File upload failed.");
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || "File upload failed.");
       }
 
       setMessage({ type: "success", text: json.message || "File(s) uploaded successfully!" });
