@@ -51,15 +51,41 @@ export const AdminResetPasswordSchema = z.object({
 });
 
 // 6. Secure File Upload Sanitization and Validation
-export const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".pdf"] as const;
+export const ALLOWED_EXTENSIONS = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".pdf",
+  ".tif",
+  ".tiff",
+  ".psd",
+  ".cdr",
+  ".ai",
+  ".eps",
+  ".webp",
+] as const;
+
 export const ALLOWED_MIME_TYPES = [
   "image/jpeg",
   "image/jpg",
   "image/pjpeg",
   "image/png",
+  "image/webp",
   "application/pdf",
+  "image/tiff",
+  "image/x-tiff",
+  "image/vnd.adobe.photoshop",
+  "image/x-photoshop",
+  "application/x-photoshop",
+  "application/photoshop",
+  "application/postscript",
+  "application/illustrator",
+  "application/coreldraw",
+  "application/x-cdr",
+  "application/octet-stream", // standard browser fallback for .cdr, .tif, .psd
 ] as const;
-export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 Megabytes
+
+export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 Megabytes for flex printing artwork
 
 export interface FileValidationResult {
   valid: boolean;
@@ -77,7 +103,7 @@ export function validateAndSanitizeFile(
   if (sizeBytes > MAX_FILE_SIZE) {
     return {
       valid: false,
-      error: `File size exceeds the 10MB limit. Current size: ${(sizeBytes / (1024 * 1024)).toFixed(2)} MB.`,
+      error: `File size exceeds the 50MB limit. Current size: ${(sizeBytes / (1024 * 1024)).toFixed(2)} MB.`,
     };
   }
 
@@ -90,18 +116,20 @@ export function validateAndSanitizeFile(
   if (!rawExt || !ALLOWED_EXTENSIONS.includes(rawExt as (typeof ALLOWED_EXTENSIONS)[number])) {
     return {
       valid: false,
-      error: `Invalid file extension (${rawExt || "none"}). Only .jpg, .jpeg, .png, and .pdf are allowed.`,
+      error: `Invalid file extension (${rawExt || "none"}). Allowed formats: JPG, PNG, PDF, TIFF, PSD, CDR, AI, EPS.`,
     };
   }
 
-  // Check MIME Type
+  // Check MIME Type (if provided; if octet-stream or empty, extension check suffices)
   const cleanMime = (mimeType || "").toLowerCase().trim();
-  const isMimeAllowed = ALLOWED_MIME_TYPES.some((m) => cleanMime.startsWith(m));
-  if (!isMimeAllowed) {
-    return {
-      valid: false,
-      error: `Invalid file type: ${cleanMime}. Allowed formats: JPG, PNG, PDF.`,
-    };
+  if (cleanMime && cleanMime !== "application/octet-stream") {
+    const isMimeAllowed = ALLOWED_MIME_TYPES.some((m) => cleanMime.startsWith(m));
+    if (!isMimeAllowed) {
+      return {
+        valid: false,
+        error: `Invalid file type: ${cleanMime}. Allowed formats: JPG, PNG, PDF, TIFF, PSD, CDR, AI, EPS.`,
+      };
+    }
   }
 
   // Generate Safe Filename: timestamp + random uuid prefix + safe original base

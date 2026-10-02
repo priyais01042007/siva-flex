@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import StatusBadge from "@/components/StatusBadge";
+import { supabaseClient, STORAGE_BUCKET } from "@/lib/supabase";
 
 interface FluxType {
   flux_id: string;
@@ -33,7 +34,7 @@ export default function CustomerSendFilePage() {
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [dimensionUnit, setDimensionUnit] = useState<"inch" | "feet">("feet");
   const [uploading, setUploading] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
   // Table state
   const [files, setFiles] = useState<CustomerFile[]>([]);
@@ -162,39 +163,127 @@ export default function CustomerSendFilePage() {
 
     setUploading(true);
 
+    const totalFiles = selectedFiles.length;
+    let successCount = 0;
+
     try {
-      const formData = new FormData();
-      formData.append("fluxtype", selectedFlux);
-      formData.append("customerId", customerId);
-      formData.append("dimensionUnit", dimensionUnit);
-      formData.append("label", "WEBUPLOAD");
+      for (let i = 0; i < totalFiles; i++) {
+        const file = selectedFiles[i];
+        const fileLabel = `${i + 1} of ${totalFiles} (${file.name})`;
+        setMessage({
+          type: "info",
+          text: `Uploading file ${fileLabel}... Please wait.`,
+        });
 
-      for (let i = 0; i < selectedFiles.length; i++) {
-        formData.append("file", selectedFiles[i]);
+        let uploadedDirectly = false;
+
+        // Step 1: Initialize order and validate in backend
+        const prepRes = await fetch("/api/customer/upload/prepare", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            fluxtype: selectedFlux,
+            dimensionUnit,
+            note: "WEBUPLOAD",
+          }),
+        });
+
+        if (!prepRes.ok) {
+          const prepText = await prepRes.text();
+          let prepErr = `Upload initialization failed (${prepRes.status})`;
+          try {
+            const prepJson = JSON.parse(prepText);
+            if (prepJson.error) prepErr = prepJson.error;
+          } catch {
+            if (prepRes.status === 401) prepErr = "Session expired. Please sign in again.";
+            else if (prepRes.status === 429) prepErr = "Upload rate limit reached. Please wait a moment.";
+          }
+          throw new Error(`${file.name}: ${prepErr}`);
+        }
+
+        const prepData = await prepRes.json();
+        if (!prepData.success) {
+          throw new Error(`${file.name}: ${prepData.error || "Failed to initialize order."}`);
+        }
+
+        // Step 2: Upload directly to Supabase Storage (bypasses Netlify 4.5MB limit, supports up to 50MB)
+        try {
+          const { error: storageError } = await supabaseClient.storage
+            .from(STORAGE_BUCKET)
+            .upload(prepData.storagePath, file, {
+              contentType: file.type || "application/octet-stream",
+              upsert: true,
+            });
+
+          if (!storageError) {
+            uploadedDirectly = true;
+          } else {
+            console.warn("Direct storage upload warning:", storageError.message);
+          }
+        } catch (directErr) {
+          console.warn("Direct storage upload exception:", directErr);
+        }
+
+        // Fallback to server route if direct storage fails (for files under 4MB)
+        if (!uploadedDirectly) {
+          if (file.size > 4 * 1024 * 1024) {
+            throw new Error(
+              `${file.name} (${(file.size / (1024 * 1024)).toFixed(1)}MB): Direct upload encountered an issue. Please verify your internet connection.`
+            );
+          }
+
+          const fallbackData = new FormData();
+          fallbackData.append("fluxtype", selectedFlux);
+          fallbackData.append("customerId", customerId);
+          fallbackData.append("dimensionUnit", dimensionUnit);
+          fallbackData.append("file", file);
+
+          const fbRes = await fetch("/api/customer/upload", {
+            method: "POST",
+            body: fallbackData,
+          });
+
+          if (!fbRes.ok) {
+            const fbText = await fbRes.text();
+            let fbErr = `Server error (${fbRes.status})`;
+            try {
+              const fbJson = JSON.parse(fbText);
+              if (fbJson.error) fbErr = fbJson.error;
+            } catch {
+              if (fbRes.status === 413) fbErr = "File exceeds serverless upload limit.";
+              else if (fbRes.status === 504) fbErr = "Upload timed out. Please retry.";
+            }
+            throw new Error(`${file.name}: ${fbErr}`);
+          }
+        } else {
+          // Step 3: Complete upload confirmation in backend
+          await fetch("/api/customer/upload/complete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              orderId: prepData.orderId,
+              storagePath: prepData.storagePath,
+            }),
+          });
+        }
+
+        successCount++;
       }
 
-      const res = await fetch("/api/customer/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const text = await res.text();
-      let json: any = null;
-      try {
-        json = JSON.parse(text);
-      } catch {
-        throw new Error(
-          res.status === 504 || text.includes("timed out")
-            ? "Upload timed out. Please check your network and verify Netlify DATABASE_URL."
-            : "Server returned an unexpected response. Please try again."
-        );
+      if (successCount === totalFiles) {
+        setMessage({
+          type: "success",
+          text: `${totalFiles} file(s) uploaded successfully to the print queue!`,
+        });
+      } else if (successCount > 0) {
+        setMessage({
+          type: "success",
+          text: `${successCount} of ${totalFiles} file(s) uploaded successfully.`,
+        });
       }
-
-      if (!res.ok || !json?.success) {
-        throw new Error(json?.error || "File upload failed.");
-      }
-
-      setMessage({ type: "success", text: json.message || "File(s) uploaded successfully!" });
 
       // Reset form
       setSelectedFiles(null);
@@ -442,7 +531,7 @@ export default function CustomerSendFilePage() {
 
           {message && (
             <div className={`alert-box ${message.type}`}>
-              {message.type === "success" ? "✓ " : "⚠ "}
+              {message.type === "success" ? "✓ " : message.type === "info" ? "⏳ " : "⚠ "}
               {message.text}
             </div>
           )}
@@ -865,6 +954,12 @@ export default function CustomerSendFilePage() {
           background-color: #ecfdf5;
           color: #065f46;
           border: 1px solid #a7f3d0;
+        }
+
+        .alert-box.info {
+          background-color: #eff6ff;
+          color: #1e40af;
+          border: 1px solid #bfdbfe;
         }
 
         .alert-box.error {
